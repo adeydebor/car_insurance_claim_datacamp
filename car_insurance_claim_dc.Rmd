@@ -1,0 +1,90 @@
+---
+title: "Car Insurance Claim Prediction Analysis"
+output: html_document
+---
+
+# Car Price Prediction Using Linear Regression
+
+## Overview
+### This project analyzes car insurance customer data to predict whether a customer will file a claim. We build simple logistic regression models using individual features and identify the best predictor based on accuracy.
+
+## Load Libraries and Data
+
+```{r}
+# Load required libraries
+library(readr)  
+library(dplyr)  
+library(glue)  
+library(yardstick)  
+
+# Load the datasets
+car_data <- read_csv("car_insurance.csv", show_col_types = FALSE)
+
+# Display initial few rows and the structure of the data  
+print(head(car_data))  
+str(car_data)  
+```
+
+## Data Cleaning
+```{r}
+# Clean the data:  
+# - Remove rows with any missing values  
+# - Remove the "id" column  
+clean_data <- car_data %>%    
+  na.omit() %>%    
+  select(-id)  
+  
+# Convert outcome to factor since it is the target variable (binary)  
+clean_data <- clean_data %>%    
+  mutate(outcome = as.factor(outcome))  
+  
+# Show dimensions of cleaned data  
+cat("Cleaned data dimensions: ", dim(clean_data)[1], "rows and", dim(clean_data)[2], "columns\n")  
+```
+
+## Model Building
+```{r}
+# Get the list of features (all columns except 'outcome')  
+feature_names <- setdiff(names(clean_data), "outcome")  
+  
+# Initialize data frame to store accuracy results for each feature  
+results <- data.frame(feature = character(), accuracy = numeric(), stringsAsFactors = FALSE)  
+  
+# Loop over features to build single variable logistic regression models  
+for(feature in feature_names) {  
+    # Create formula: outcome ~ feature  
+    current_formula <- as.formula(glue("outcome ~ {feature}"))  
+      
+    # Fit logistic regression  
+    model <- glm(current_formula, data = clean_data, family = binomial)  
+      
+    # Predict probabilities  
+    preds_prob <- predict(model, type = "response")  
+      
+    # Classify with threshold 0.5  
+    preds_class <- ifelse(preds_prob >= 0.5, 1, 0) %>%   
+      factor(levels = levels(clean_data$outcome))  
+      
+    # Calculate accuracy using yardstick  
+    temp_df <- tibble(truth = clean_data$outcome, prediction = preds_class)  
+    acc <- accuracy(temp_df, truth = truth, estimate = prediction)$.estimate  
+      
+    # Append result  
+    results <- rbind(results, data.frame(feature = feature, accuracy = acc,  
+                                         stringsAsFactors = FALSE))  
+}  
+  
+# Sort results by accuracy in descending order  
+results <- results %>% arrange(desc(accuracy))  
+  
+# Print all features' accuracy results  
+print(results)  
+```
+
+## Identify Best Performing Feature
+```{r}
+# Identify the best performing feature and its accuracy  
+best_result <- results %>% filter(accuracy == max(accuracy))  
+best_feature_df <- best_result %>% rename(best_feature = feature, best_accuracy = accuracy)  
+print(best_feature_df)  
+```
